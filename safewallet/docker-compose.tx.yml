@@ -1,0 +1,113 @@
+networks:
+  default:
+    name: safe_shared_network
+    external: true
+
+volumes:
+  nginx-shared-txs:
+  nginx-shared-cfg:
+  nginx-shared-cfg-media:
+
+x-healthcheck-celery-template: &celeryhealthcheck
+  healthcheck:
+    test: ["CMD", "celery", "inspect", "ping"]
+    interval: 30s
+    timeout: 30s
+    retries: 3
+
+x-healthcheck-db-template: &pghealthcheck
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres"]
+    interval: 30s
+    timeout: 30s
+    retries: 3
+
+x-healthcheck-redis-template: &redishealthcheck
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 30s
+    timeout: 30s
+    retries: 3
+
+services:
+  # Safe Transaction Service for Endurance mainnet
+  txs-db:
+    image: postgres:14-alpine
+    command: -c 'max_connections=250'
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data/txs-db:/var/lib/postgresql/data
+    ports:
+      - "55432:5432"
+    <<: *pghealthcheck
+  txs-redis:
+    image: redis:alpine
+    <<: *redishealthcheck
+
+  txs-rabbitmq:
+    image: rabbitmq:alpine
+
+  txs-worker-indexer: &txs-worker
+    image: safeglobal/safe-transaction-service:${TXS_VERSION}
+    env_file:
+      - container_env_files/txs.env
+    environment:
+      - ETHEREUM_NODE_URL=${RPC_NODE_URL}
+      - RUN_MIGRATIONS=1
+      - WORKER_QUEUES=default,indexing
+
+    depends_on:
+      txs-db:
+        condition: service_healthy
+      txs-redis:
+        condition: service_healthy
+    command: docker/web/celery/worker/run.sh
+    <<: *celeryhealthcheck
+
+  txs-worker-contracts-tokens:
+    <<: *txs-worker
+    environment:
+      - WORKER_QUEUES=contracts,tokens
+      - ETHEREUM_NODE_URL=${RPC_NODE_URL}
+
+    depends_on:
+      txs-worker-indexer:
+        condition: service_healthy
+
+  txs-worker-notifications-webhooks:
+    <<: *txs-worker
+    environment:
+      - WORKER_QUEUES=notifications,webhooks
+      - ETHEREUM_NODE_URL=${RPC_NODE_URL}
+
+    depends_on:
+      txs-worker-indexer:
+        condition: service_healthy
+
+  txs-web:
+    image: safeglobal/safe-transaction-service:${TXS_VERSION}
+    env_file:
+      - container_env_files/txs.env
+    environment:
+      - ETHEREUM_NODE_URL=${RPC_NODE_URL}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+      - DJANGO_SECRET_KEY=${TXS_DJANGO_SECRET_KEY}
+
+    depends_on:
+      txs-worker-indexer:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - nginx-shared-txs:/nginx
+    command: docker/web/run_web.sh
+
+  txs-scheduler:
+    <<: *txs-worker
+
+    depends_on:
+      txs-db:
+        condition: service_healthy
+      txs-redis:
+        condition: service_healthy
+    command: docker/web/celery/scheduler/run.sh
