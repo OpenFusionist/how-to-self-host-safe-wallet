@@ -29,5 +29,6 @@ cd how-to-self-host-safe-wallet/safewallet
 cp .env.sample .env
 
 # Modify .env before running this command.
+docker network create safe_shared_network
 docker compose -f docker-compose.core.yml -f docker-compose.tx.yml up -d
 ```
