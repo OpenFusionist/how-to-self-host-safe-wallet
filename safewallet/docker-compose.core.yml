@@ -33,6 +33,7 @@ services:
   # Common nginx and database
   nginx:
     image: nginx:alpine
+    restart: always
     ports:
       - "${REVERSE_PROXY_PORT}:8000"
     volumes:
@@ -48,6 +49,7 @@ services:
 
   cfg-db:
     image: postgres:14-alpine
+    restart: always
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -58,6 +60,7 @@ services:
 
   events-db:
     image: postgres:14-alpine
+    restart: always
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -70,6 +73,7 @@ services:
   cfg-web:
     user: root
     image: safeglobal/safe-config-service:${CFG_VERSION}
+    restart: always
     tty: true
     volumes:
       - nginx-shared-cfg:/nginx
@@ -88,12 +92,14 @@ services:
   # Safe Client Gateway
   cgw-redis:
     image: redis:alpine
+    restart: always
     <<: *redishealthcheck
     ports:
       - "36379:6379"
 
   cgw-web:
     image: safeglobal/safe-client-gateway-nest:${CGW_VERSION}
+    restart: always
     env_file:
       - container_env_files/cgw.env
     environment:
@@ -103,6 +109,7 @@ services:
         condition: service_healthy
   ui:
     image: shelchin2023/safe-wallet-web:${UI_VERSION}
+    restart: always
     env_file:
       - container_env_files/ui.env
     environment:
@@ -117,6 +124,7 @@ services:
       - 8080
   ui141:
     image: shelchin2023/safe-wallet-web:${UI_VERSION}
+    restart: always
     env_file:
       - container_env_files/ui.env
     environment:
@@ -134,6 +142,7 @@ services:
 
   general-rabbitmq:
     image: rabbitmq:alpine
+    restart: always
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 15s
@@ -143,6 +152,7 @@ services:
 
   events-web:
     image: safeglobal/safe-events-service:${EVENTS_VERSION}
+    restart: always
     env_file:
       - container_env_files/events.env
     depends_on:

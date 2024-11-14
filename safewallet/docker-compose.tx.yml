@@ -33,6 +33,7 @@ services:
   # Safe Transaction Service for Endurance mainnet
   txs-db:
     image: postgres:14-alpine
+    restart: always
     command: -c 'max_connections=250'
     environment:
       POSTGRES_PASSWORD: postgres
@@ -43,13 +44,16 @@ services:
     <<: *pghealthcheck
   txs-redis:
     image: redis:alpine
+    restart: always
     <<: *redishealthcheck
 
   txs-rabbitmq:
     image: rabbitmq:alpine
+    restart: always
 
   txs-worker-indexer: &txs-worker
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
+    restart: always
     env_file:
       - container_env_files/txs.env
     environment:
@@ -67,6 +71,7 @@ services:
 
   txs-worker-contracts-tokens:
     <<: *txs-worker
+    restart: always
     environment:
       - WORKER_QUEUES=contracts,tokens
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
@@ -77,6 +82,7 @@ services:
 
   txs-worker-notifications-webhooks:
     <<: *txs-worker
+    restart: always
     environment:
       - WORKER_QUEUES=notifications,webhooks
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
@@ -87,6 +93,7 @@ services:
 
   txs-web:
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
+    restart: always
     env_file:
       - container_env_files/txs.env
     environment:
@@ -104,7 +111,7 @@ services:
 
   txs-scheduler:
     <<: *txs-worker
-
+    restart: always
     depends_on:
       txs-db:
         condition: service_healthy
